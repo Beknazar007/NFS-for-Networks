@@ -1,0 +1,106 @@
+# Setup NFS server-client in Centos 7.
+
+# filesharing
+In this blog, I will answer some basic questions about NFS and explain how to setup NFS server-client.
+
+# What is NFS ?
+Network File System(NFS) is a distributed file system protocol, to share the files and folders between the Linux/Unix systems.
+
+# Why is it used ?
+To share files. Since mounting of filesystem is possible,
+NFS-Client can access the files of NFS-Server as like the local files.
+
+# How to setup NFS ?
+Since it's like a client-server model, we need to setup server and client individually.
+
+# What we need to do this tutorial?
+>Two servers
+    
+    NFS server master   192.168.0.83
+    NFS Client server   192.168.0.84
+I have created this server`s in Virtual box Centos 7
+# Setup NFS-server
+In this post, we are doing it in Centos, which uses yum as the package manager.
+
+1. Installing nfs-utils
+         
+         sudo su - or su -i
+         yum install nfs-utils
+2. Choose the directory to share. If not present create one.
+         
+         mkdir /var/nfs_share_dir
+3. Add permissions and ownwership privilages to the shared directory.
+        
+         chmod -R 755 /var/nfs_share_dir
+         chown nfsnobody:nfsnobody /var/nfs_share_dir
+4. Start the nfs services.
+    >this services needed to support our nfs 
+
+         systemctl enable rpcbind
+         systemctl enable nfs-server
+         systemctl enable nfs-lock
+         systemctl enable nfs-idmap
+         systemctl start rpcbind
+         systemctl start nfs-server
+         systemctl start nfs-lock
+         systemctl start nfs-idmap
+    
+5. Configuring the exports file for sharing.
+   Open the exports file and add these lines.
+     
+        vi /etc/exports
+    >Fill in the the file-shared path and clients details in /etc/exports.
+    
+        192.168.48.101 - Client's IP
+        /var/nfs_share_dir    192.168.48.101(rw,sync,no_root_squash)
+6. Restart the service
+    
+     systemctl restart nfs-server
+7. Only for Centos 7,NFS service override
+    
+         firewall-cmd --permanent --zone=public --add-service=nfs
+         firewall-cmd --permanent --zone=public --add-service=mountd
+         firewall-cmd --permanent --zone=public --add-service=rpc-bind
+         firewall-cmd --reload
+# Setup NFS-Client(s)
+1.  Installing nfs-utils
+         
+         sudo su -
+         yum install nfs-utils
+
+2. Create a mount point
+    
+         mkdir -p /mnt/nfs/var/nfs_share_dir
+3. Mounting the filesystem
+    
+         mount -t nfs 192.168.48.100:/var/nfs_share_dir /mnt/nfs/var/nfs_share_dir
+
+* -t  type of filesystem
+>192.168.48.100 server's IP
+4. Verify if mounted
+ 
+        $ df -kh 
+
+        Filesystem                    Size  Used Avail Use% Mounted on
+        /dev/mapper/centos-root         39G  1.1G   38G   3% /
+        devtmpfs                        488M     0  488M   0% /dev
+        tmpfs                          494M     0  494M   0% /dev/shm
+        tmpfs                            494M  6.7M  487M   2% /run
+        tmpfs                            494M     0  494M   0% /sys/fs/cgroup
+        /dev/mapper/centos-home           19G   33M   19G   1% /home
+        /dev/sda1                         497M  126M  372M  26% /boot
+        192.168.48.100:/var/nfs_share_dir   39G  980M   38G   3% /mnt/nfs/var/      nfs_share_dir
+5. Mounting permanently.
+Now if the client is rebooted, we need to remount again. So, to mount permanently,we need to configure /etc/fstab file.
+Append this to /etc/fstab
+    
+        192.168.48.100:/var/nfs_share_dir /mnt/nfs/var/nfs_share_dir nfs defaults 0 0
+To verify, create a file in the Client-side, and open in server-side.
+
+6. Client-side(192.168.48.101)
+    
+        echo "Client Hello" >> /mnt/nfs/var/nfs_share_dir/testing.txt
+    >Server-side(192.168.48.100)
+   
+         cat /var/nfs_share_dir/testing.txt
+         Client Hello
